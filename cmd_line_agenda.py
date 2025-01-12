@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 from datetime import date, timedelta
+import calendar
 from enum import Enum
 import os
 
 AGENDA_PATH = 'agenda_stored.txt'
+SETTINGS_PATH = 'user_settings.txt'
 
 class TextColors:
     HEADER = '\033[95m'
@@ -307,14 +309,15 @@ class AgendaCommandLineInterface:
 
     PARAMS:
     agenda: Agenda
+    additional_day_info: boolean
     '''
     def __init__(self, agenda):
         self.agenda = agenda
 
-    def print_agenda(self):
+    def print_agenda(self, additional_day_info=False):
         print()
         pretty_print("--- YOUR AGENDA ---",  TextColors.BOLD)
-        self.print_upcoming_days()
+        self.print_upcoming_days(additional_day_info)
         print()
         pretty_print("--- OVERDUE ITEMS ---", TextColors.BOLD)
         self.print_overdue()
@@ -323,15 +326,21 @@ class AgendaCommandLineInterface:
     Pretty prints all the upcoming days stored in the associated agenda, separated initially and finally
     by an empty row. Starts from today and goes forward in time.
     '''
-    def print_upcoming_days(self):
+    def print_upcoming_days(self, additional_day_info=False):
         print()
 
         self.agenda.refresh_today_date()
         for day_date in date_range_inclusive(date.today(), self.agenda.get_latest_date()):
             if day_date == date.today():
-                pretty_print(day_date, TextColors.OKCYAN + TextColors.UNDERLINE)
+                pretty_print(day_date, TextColors.OKCYAN + TextColors.UNDERLINE, end='')
             else:
-                pretty_print(day_date, TextColors.OKBLUE)
+                pretty_print(day_date, TextColors.OKBLUE, end='')
+
+            if additional_day_info:
+                print(' ', end='')
+                self._print_additional_day_info(day_date)
+            else:
+                print()
 
             index = 0
             for task, status in self.agenda.get_tasks(day_date):
@@ -342,10 +351,25 @@ class AgendaCommandLineInterface:
                 else:
                     pretty_print('0' + str(index) if index < 10 else str(index), TextColors.WARNING, end=' ')
                     pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.WARNING, end=' ')
-                    print(task)
+                    if status == TaskStatus.IN_PROGRESS:
+                        pretty_print(task, TextColors.WARNING);
+                    else:
+                        print(task)
                 index += 1
 
             print()
+
+    '''
+    Pretty prints additional day info, if that setting is enabled. Additional day info includes the day of
+    the week and the number of days after today corresponding to the given date.
+
+    PARAMS:
+    day_date: date
+    '''
+    def _print_additional_day_info(self, day_date):
+        day_diff = (day_date - date.today()).days
+        day_of_week = calendar.day_name[day_date.weekday()][:3].upper()
+        pretty_print('[' + day_of_week + '] [+' + str(day_diff) + ']', TextColors.OKCYAN if day_date == date.today() else TextColors.OKBLUE)
 
     '''
     Pretty prints all the past days stored in the associated agenda, separated initially and finally
@@ -441,6 +465,7 @@ class AgendaCommandLineInterface:
         pretty_print("Type 'u' followed by a YYYY-MM-DD date and the index of a task to cycle its status through NOT_STARTED, IN_PROGRESS, and DONE.\n", TextColors.WARNING)
         pretty_print("Type 's' to save all changes. REMEMBER TO DO THIS! Otherwise your changes may be lost when you close the program.", TextColors.WARNING)
         pretty_print("Type 'sq' to save and quit, or 'quit' to quit without saving.", TextColors.WARNING)
+        pretty_print("Type 'settings' to open a settings menu.", TextColors.WARNING)
         pretty_print("Type 'help' to view these instructions.\n", TextColors.WARNING)
         pretty_print("Some (possibly) helpful notes:\n", TextColors.BOLD)
         pretty_print("[N] means NOT_STARTED, [I] means IN_PROGRESS, and [D] means DONE.\n", TextColors.WARNING)
@@ -448,6 +473,17 @@ class AgendaCommandLineInterface:
         pretty_print("*   \"today\" or \"now\" for today's date", TextColors.WARNING)
         pretty_print("*   \"+N\" where N is a number of days after today (e.g. \"+7\" means one week from today's date)", TextColors.WARNING)
         print()
+
+    '''
+    Pretty prints the settings menu.
+    '''
+    def print_settings_menu(self):
+        pretty_print("\nSETTINGS\n", TextColors.UNDERLINE)
+        pretty_print("Press [ENTER] without typing anything to exit the menu.", TextColors.WARNING)
+        pretty_print("Press the corresponding key to toggle a setting.", TextColors.WARNING)
+        pretty_print("[1] Toggle additional day information", TextColors.WARNING)
+        print()
+
 
     '''
     Pretty prints a prompt for the user to enter a command.
@@ -510,7 +546,30 @@ class AgendaCommandLineInterface:
     def goodbye(self):
         pretty_print("Goodbye!", TextColors.WARNING)
 
+    '''
+    Pretty prints a prompt for the user to change a setting if the user is in the settings menu.
+    '''
+    def prompt_next_settings_command(self):
+        print("\nEnter a setting to change (leave blank to exit settings menu): ", end='')
+
+    '''
+    Pretty prints confirmation that a user changed a setting.
+    '''
+    def confirm_setting_changed(self, setting_name, new_value):
+        pretty_print(f"Changed setting \"{setting_name}\" to {new_value}.", TextColors.WARNING)
+
+    '''
+    Pretty prints confirmation that any updated settings have been saved.
+    '''
+    def confirm_settings_saved(self):
+        pretty_print(f"Settings saved to {SETTINGS_PATH}.", TextColors.WARNING)
+
+
 class AgendaCommandLineController:
+
+    class Menu(Enum):
+        MAIN = 0
+        SETTINGS = 1
 
     '''
     Initializes an AgendaCommandLineController that handles the given agenda and the given command
@@ -527,6 +586,7 @@ class AgendaCommandLineController:
     def __init__(self, agenda, view):
         self.agenda = agenda 
         self.agenda_view = view 
+        self.cur_menu = AgendaCommandLineController.Menu.MAIN
 
         self.commands = {
             '': self.view_agenda,
@@ -539,13 +599,28 @@ class AgendaCommandLineController:
             'r': self.remove_item,
             'm': self.update_description_item,
             'u': self.update_status_item,
+            'settings': self.view_settings,
         }
 
+        self.settings_commands = {
+            '1': self.settings_toggle_advanced_day,
+        }
+
+        if os.path.isfile(SETTINGS_PATH):
+            try:
+                self._load_saved_settings()
+            except:
+                # strictly speaking this should be in the view but oh well
+                pretty_print("\nWARNING: Failed to load saved user settings from disk. Settings have been temporarily reset to default and will be saved when they are next modified.", TextColors.FAIL)
+                self._reset_all_settings()
+        else:
+            self._reset_all_settings()
+
     def view_agenda(self, args):
-        self.agenda_view.print_agenda()
+        self.agenda_view.print_agenda(self.settings_show_advanced_day)
     
     def view_upcoming(self, args):
-        self.agenda_view.print_upcoming_days()
+        self.agenda_view.print_upcoming_days(self.settings_show_advanced_day)
 
     def view_past(self, args):
         self.agenda_view.print_past_days()
@@ -591,6 +666,44 @@ class AgendaCommandLineController:
         description, new_status = self.agenda.get_tasks(day_date)[index]
         self.agenda_view.update_status_item_successful(day_date, description, old_status.value, new_status.value)
 
+    def view_settings(self, args):
+        self.agenda_view.print_settings_menu()
+        self.cur_menu = AgendaCommandLineController.Menu.SETTINGS
+
+    def settings_toggle_advanced_day(self, args):
+        self.settings_show_advanced_day = not self.settings_show_advanced_day
+        self.agenda_view.confirm_setting_changed("additional day information", str(self.settings_show_advanced_day).upper())
+
+    def settings_save(self, args):
+        with open(SETTINGS_PATH, 'w') as f:
+            f.write("Show additional day information: " + str(self.settings_show_advanced_day) + "\n")
+        self.agenda_view.confirm_settings_saved()
+
+    '''
+    Loads any saved user settings from disk, if there are any.
+    NOTE: this function does not check whether the file exists already.
+    NOTE: the settings are saved in a text file where each line has the following format:
+    <setting name/description> <value>
+
+    Example:
+    Show additional day information: True
+    '''
+    def _load_saved_settings(self):
+        with open(SETTINGS_PATH, 'r') as f:
+            extracted_setting_show_advanced_day = f.readline().strip().split()[-1]
+            if extracted_setting_show_advanced_day == str(True):
+                self.settings_show_advanced_day = True 
+            elif extracted_setting_show_advanced_day == str(False):
+                self.settings_show_advanced_day = False 
+            else:
+                raise Exception("Failed to read advanced day setting from file.")
+
+    '''
+    Resets all user settings to their default values.
+    '''
+    def _reset_all_settings(self):
+        self.settings_show_advanced_day = False
+
     '''
     Checks whether the given string is one of the alternatives the user can write instead of
     putting in a date. If so, returns the date that corresponds to that alternative. For example, if
@@ -616,6 +729,79 @@ class AgendaCommandLineController:
         return date.fromisoformat(date_string)
 
     '''
+    Handles any commands when the user is on the main loop. Before this function is called, check that
+    the user is currently on the main loop (and not on another menu like the settings menu).
+
+    Returns:
+    boolean: True if the user will continue using the application, False if the user input a quit command
+    '''
+    def _handle_main_loop(self):
+        self.agenda_view.prompt_next_command()
+        command = input()
+
+        # handles a couple special commands
+        if not command:
+            self.view_agenda([])
+            return False
+        elif command == "sq":
+            self.save_agenda([])
+            return True
+        elif command == "quit":
+            confirmation = ''
+            while not confirmation in ('y', 'n'):
+                self.agenda_view.quit_confirmation()
+                confirmation = input()
+            if confirmation == 'y':
+                return True 
+            else:
+                return False
+
+        # other commands are all stored in the commands dictionary
+        # TODO: abstract this out with the settings menu handler
+        command_list = command.split()
+        if command_list[0] not in self.commands:
+            self.agenda_view.invalid_command()
+            return False 
+            
+        try:
+            self.commands[command_list[0]](command_list[1:])
+        except Exception as e:
+            self.agenda_view.error(str(e))
+
+        return False
+
+    '''
+    Handles any commands when the user is on the settings menu. Before this function is called, check that
+    the user is currently on the settings menu.
+
+    Returns:
+    boolean: True if the user will continue using the application, False if the user input a quit command
+    '''
+    def _handle_settings_menu(self):
+        self.agenda_view.prompt_next_settings_command()
+        command = input()
+
+        # handles a couple special commands
+        if not command:
+            self.settings_save([])
+            self.cur_menu = AgendaCommandLineController.Menu.MAIN
+            return False
+
+        # other settings options are all stored in the settings dictionary
+        # TODO: abstract this out with the main loop handler
+        command_list = command.split()
+        if command_list[0] not in self.settings_commands:
+            self.agenda_view.invalid_command()
+            return False 
+            
+        try:
+            self.settings_commands[command_list[0]](command_list[1:])
+        except Exception as e:
+            self.agenda_view.error(str(e))
+
+        return False
+
+    '''
     Runs the controller.
     '''
     def go(self):
@@ -623,36 +809,14 @@ class AgendaCommandLineController:
         self.agenda_view.print_instructions()
 
         while True:
-            self.agenda_view.prompt_next_command()
-            command = input()
-
-            # handles a couple special commands
-            if not command:
-                self.view_agenda([])
-                continue
-            elif command == "sq":
-                self.save_agenda([])
-                break
-            elif command == "quit":
-                confirmation = ''
-                while not confirmation in ('y', 'n'):
-                    self.agenda_view.quit_confirmation()
-                    confirmation = input()
-                if confirmation == 'y':
-                    break 
-                else:
-                    continue
-
-            # other commands are all stored in the commands dictionary
-            command_list = command.split()
-            if command_list[0] not in self.commands:
-                self.agenda_view.invalid_command()
-                continue 
+            user_quit = False
+            if self.cur_menu == AgendaCommandLineController.Menu.SETTINGS:
+                self._handle_settings_menu()
+            else:
+                user_quit = self._handle_main_loop()
             
-            try:
-                self.commands[command_list[0]](command_list[1:])
-            except Exception as e:
-                self.agenda_view.error(str(e))
+            if user_quit:
+                break
 
         self.agenda_view.goodbye()
 
