@@ -179,6 +179,8 @@ class Agenda:
         if day > self.farthest_date:
             self._add_days(self.farthest_date, day)
             self.farthest_date = day
+        elif day < self.earliest_date:
+            self.earliest_date = day
 
         self.refresh_today_date()
 
