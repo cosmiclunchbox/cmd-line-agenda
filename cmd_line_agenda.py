@@ -314,10 +314,10 @@ class AgendaCommandLineInterface:
     def __init__(self, agenda):
         self.agenda = agenda
 
-    def print_agenda(self, additional_day_info=False):
+    def print_agenda(self, show_weekday=False, show_relative_to_today=False):
         print()
         pretty_print("--- YOUR AGENDA ---",  TextColors.BOLD)
-        self.print_upcoming_days(additional_day_info)
+        self.print_upcoming_days(show_weekday, show_relative_to_today)
         print()
         pretty_print("--- OVERDUE ITEMS ---", TextColors.BOLD)
         self.print_overdue()
@@ -326,19 +326,25 @@ class AgendaCommandLineInterface:
     Pretty prints all the upcoming days stored in the associated agenda, separated initially and finally
     by an empty row. Starts from today and goes forward in time.
     '''
-    def print_upcoming_days(self, additional_day_info=False):
+    def print_upcoming_days(self, show_weekday=False, show_relative_to_today=False):
         print()
 
         self.agenda.refresh_today_date()
         for day_date in date_range_inclusive(date.today(), self.agenda.get_latest_date()):
+
+            # display what day of week it is
+            if show_weekday:
+                self._print_weekday(day_date)
+
+            # display the date
             if day_date == date.today():
                 pretty_print(day_date, TextColors.OKCYAN + TextColors.UNDERLINE, end='')
             else:
                 pretty_print(day_date, TextColors.OKBLUE, end='')
 
-            if additional_day_info:
-                print(' ', end='')
-                self._print_additional_day_info(day_date)
+            # display number of days after today
+            if show_relative_to_today:
+                self._print_relative_to_today(day_date)
             else:
                 print()
 
@@ -360,16 +366,25 @@ class AgendaCommandLineInterface:
             print()
 
     '''
-    Pretty prints additional day info, if that setting is enabled. Additional day info includes the day of
-    the week and the number of days after today corresponding to the given date.
+    Pretty prints the day of the week. This should be printed immediately before the date itself.
 
     PARAMS:
     day_date: date
     '''
-    def _print_additional_day_info(self, day_date):
-        day_diff = (day_date - date.today()).days
+    def _print_weekday(self, day_date):
         day_of_week = calendar.day_name[day_date.weekday()][:3].upper()
-        pretty_print('[' + day_of_week + '] [+' + str(day_diff) + ']', TextColors.OKCYAN if day_date == date.today() else TextColors.OKBLUE)
+        pretty_print('[' + day_of_week + ']', TextColors.OKCYAN if day_date == date.today() else TextColors.OKBLUE, end=' ')
+
+    '''
+    Pretty prints the number of days after today corresponding to the given date. This should be printed
+    immediately after the date itself.
+
+    PARAMS:
+    day_date: date
+    '''
+    def _print_relative_to_today(self, day_date):
+        day_diff = (day_date - date.today()).days
+        pretty_print(' [+' + str(day_diff) + ']', TextColors.OKCYAN if day_date == date.today() else TextColors.OKBLUE)
 
     '''
     Pretty prints all the past days stored in the associated agenda, separated initially and finally
@@ -481,7 +496,9 @@ class AgendaCommandLineInterface:
         pretty_print("\nSETTINGS\n", TextColors.UNDERLINE)
         pretty_print("Press [ENTER] without typing anything to exit the menu.", TextColors.WARNING)
         pretty_print("Press the corresponding key to toggle a setting.", TextColors.WARNING)
-        pretty_print("[1] Toggle additional day information", TextColors.WARNING)
+        pretty_print("[0] Toggle cool setting", TextColors.WARNING)
+        pretty_print("[1] Display the day of the week next to each date", TextColors.WARNING)
+        pretty_print("[2] Display the number of days after today corresponding to each date", TextColors.WARNING)
         print()
 
 
@@ -588,6 +605,8 @@ class AgendaCommandLineController:
         self.agenda_view = view 
         self.cur_menu = AgendaCommandLineController.Menu.MAIN
 
+        # maps each command to a particular function to be called
+        # each function must take in a list of arguments
         self.commands = {
             '': self.view_agenda,
             'vu': self.view_upcoming,
@@ -602,9 +621,18 @@ class AgendaCommandLineController:
             'settings': self.view_settings,
         }
 
+        # maps each settings command to the index of the setting it should change
         self.settings_commands = {
-            '1': self.settings_toggle_advanced_day,
+            '0': 0,
+            '1': 1,
+            '2': 2,
         }
+
+        self.settings_names = [
+            "random setting",
+            "show weekday names",
+            "show number of days from today",
+        ]
 
         if os.path.isfile(SETTINGS_PATH):
             try:
@@ -616,11 +644,21 @@ class AgendaCommandLineController:
         else:
             self._reset_all_settings()
 
+    '''
+    Resets all user settings to their default values.
+    '''
+    def _reset_all_settings(self):
+        self.settings_list = [
+            False,
+            False,
+            False,
+        ]
+
     def view_agenda(self, args):
-        self.agenda_view.print_agenda(self.settings_show_advanced_day)
+        self.agenda_view.print_agenda(self.settings_list[1], self.settings_list[2])
     
     def view_upcoming(self, args):
-        self.agenda_view.print_upcoming_days(self.settings_show_advanced_day)
+        self.agenda_view.print_upcoming_days(self.settings_list[1], self.settings_list[2])
 
     def view_past(self, args):
         self.agenda_view.print_past_days()
@@ -666,17 +704,36 @@ class AgendaCommandLineController:
         description, new_status = self.agenda.get_tasks(day_date)[index]
         self.agenda_view.update_status_item_successful(day_date, description, old_status.value, new_status.value)
 
+    '''
+    Called when the user brings up the settings menu.
+
+    PARAMS:
+    args: list(string)
+    '''
     def view_settings(self, args):
         self.agenda_view.print_settings_menu()
         self.cur_menu = AgendaCommandLineController.Menu.SETTINGS
 
-    def settings_toggle_advanced_day(self, args):
-        self.settings_show_advanced_day = not self.settings_show_advanced_day
-        self.agenda_view.confirm_setting_changed("additional day information", str(self.settings_show_advanced_day).upper())
+    '''
+    Called when the user toggles the setting in the settings list at the given index in the list.
 
+    PARAMS:
+    index: int
+    '''
+    def settings_toggle_setting(self, index):
+        self.settings_list[index] = not self.settings_list[index]
+        self.agenda_view.confirm_setting_changed(self.settings_names[index], str(self.settings_list[index]).upper())
+
+    '''
+    Called when the user closes out of the settings menu, saving all the current user settings.
+
+    PARAMS:
+    args: list(string)
+    '''
     def settings_save(self, args):
         with open(SETTINGS_PATH, 'w') as f:
-            f.write("Show additional day information: " + str(self.settings_show_advanced_day) + "\n")
+            for i in range(len(self.settings_names)):
+                f.write(self.settings_names[i] + ": " + str(self.settings_list[i]) + "\n")
         self.agenda_view.confirm_settings_saved()
 
     '''
@@ -686,23 +743,24 @@ class AgendaCommandLineController:
     <setting name/description> <value>
 
     Example:
-    Show additional day information: True
+    additional day information: True
     '''
     def _load_saved_settings(self):
         with open(SETTINGS_PATH, 'r') as f:
-            extracted_setting_show_advanced_day = f.readline().strip().split()[-1]
-            if extracted_setting_show_advanced_day == str(True):
-                self.settings_show_advanced_day = True 
-            elif extracted_setting_show_advanced_day == str(False):
-                self.settings_show_advanced_day = False 
-            else:
-                raise Exception("Failed to read advanced day setting from file.")
+            self.settings_list = []
+            lines = f.readlines()
 
-    '''
-    Resets all user settings to their default values.
-    '''
-    def _reset_all_settings(self):
-        self.settings_show_advanced_day = False
+            # currently only boolean values for settings are supported
+            for i in range(len(lines)):
+                description, setting = lines[i].strip().split(": ")
+                assert(description == self.settings_names[i])
+                assert(setting == str(True) or setting == str(False) or setting.isdigit())
+                if setting == str(True):
+                    self.settings_list.append(True)
+                elif setting == str(False):
+                    self.settings_list.append(False)
+                else:
+                    raise Exception("Unknown format for setting value.")
 
     '''
     Checks whether the given string is one of the alternatives the user can write instead of
@@ -795,7 +853,7 @@ class AgendaCommandLineController:
             return False 
             
         try:
-            self.settings_commands[command_list[0]](command_list[1:])
+            self.settings_toggle_setting(self.settings_commands[command_list[0]])
         except Exception as e:
             self.agenda_view.error(str(e))
 
