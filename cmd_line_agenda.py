@@ -439,12 +439,15 @@ class AgendaCommandLineInterface:
             pretty_print("No overdue items!\n", TextColors.OKGREEN)
             return
 
+        overdue_tasks = False
+
         for day_date in date_range_inclusive(self.agenda.get_earliest_date(), date.today() - timedelta(1)):
             index = 0
 
             outstanding_tasks = [task[1] for task in self.agenda.get_tasks(day_date) if task[1] != TaskStatus.DONE]
 
             if outstanding_tasks:
+                overdue_tasks = True
                 pretty_print(day_date, TextColors.FAIL)
             
             for task, status in self.agenda.get_tasks(day_date):
@@ -456,6 +459,9 @@ class AgendaCommandLineInterface:
 
             if outstanding_tasks:
                 print()
+
+        if not overdue_tasks:
+            pretty_print("No overdue items!\n", TextColors.OKGREEN)
 
     '''
     Pretty prints a welcome message.
@@ -479,8 +485,8 @@ class AgendaCommandLineInterface:
         pretty_print("Type 'm' followed by a YYYY-MM-DD date, the index of a task, and a text description to rename that task.", TextColors.WARNING)
         pretty_print("Type 'u' followed by a YYYY-MM-DD date and the index of a task to cycle its status through NOT_STARTED, IN_PROGRESS, and DONE.\n", TextColors.WARNING)
         pretty_print("Type 's' to save all changes. REMEMBER TO DO THIS! Otherwise your changes may be lost when you close the program.", TextColors.WARNING)
-        pretty_print("Type 'sq' to save and quit, or 'quit' to quit without saving.", TextColors.WARNING)
-        pretty_print("Type 'settings' to open a settings menu.", TextColors.WARNING)
+        pretty_print("Type 'sq' to save and quit, or 'q'/'quit' to quit without saving.", TextColors.WARNING)
+        pretty_print("Type 'o' to open a settings menu.", TextColors.WARNING)
         pretty_print("Type 'help' to view these instructions.\n", TextColors.WARNING)
         pretty_print("Some (possibly) helpful notes:\n", TextColors.BOLD)
         pretty_print("[N] means NOT_STARTED, [I] means IN_PROGRESS, and [D] means DONE.\n", TextColors.WARNING)
@@ -608,7 +614,6 @@ class AgendaCommandLineController:
         # maps each command to a particular function to be called
         # each function must take in a list of arguments
         self.commands = {
-            '': self.view_agenda,
             'vu': self.view_upcoming,
             'vp': self.view_past,
             'vl': self.view_overdue,
@@ -618,7 +623,7 @@ class AgendaCommandLineController:
             'r': self.remove_item,
             'm': self.update_description_item,
             'u': self.update_status_item,
-            'settings': self.view_settings,
+            'o': self.view_settings,
         }
 
         # maps each settings command to the index of the setting it should change
@@ -804,7 +809,7 @@ class AgendaCommandLineController:
         elif command == "sq":
             self.save_agenda([])
             return True
-        elif command == "quit":
+        elif command == "quit" or command == 'q':
             confirmation = ''
             while not confirmation in ('y', 'n'):
                 self.agenda_view.quit_confirmation()
