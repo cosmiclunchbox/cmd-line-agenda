@@ -316,10 +316,10 @@ class AgendaCommandLineInterface:
     def __init__(self, agenda):
         self.agenda = agenda
 
-    def print_agenda(self, show_weekday=False, show_relative_to_today=False):
+    def print_agenda(self, show_weekday=False, show_relative_to_today=False, limit_number_shown=0):
         print()
         pretty_print("--- YOUR AGENDA ---",  TextColors.BOLD)
-        self.print_upcoming_days(show_weekday, show_relative_to_today)
+        self.print_upcoming_days(show_weekday, show_relative_to_today, limit_number_shown)
         print()
         pretty_print("--- OVERDUE ITEMS ---", TextColors.BOLD)
         self.print_overdue()
@@ -328,11 +328,18 @@ class AgendaCommandLineInterface:
     Pretty prints all the upcoming days stored in the associated agenda, separated initially and finally
     by an empty row. Starts from today and goes forward in time.
     '''
-    def print_upcoming_days(self, show_weekday=False, show_relative_to_today=False):
+    def print_upcoming_days(self, show_weekday=False, show_relative_to_today=False, limit_number_shown=0):
         print()
 
         self.agenda.refresh_today_date()
-        for day_date in date_range_inclusive(date.today(), self.agenda.get_latest_date()):
+
+        # limits the max number of days shown if needed
+        if limit_number_shown > 0 and date.today() + timedelta(limit_number_shown) < self.agenda.get_latest_date():
+            upper_bound = date.today() + timedelta(limit_number_shown)
+        else:
+            upper_bound = self.agenda.get_latest_date()
+        
+        for day_date in date_range_inclusive(date.today(), upper_bound):
 
             # display what day of week it is
             if show_weekday:
@@ -499,14 +506,25 @@ class AgendaCommandLineInterface:
 
     '''
     Pretty prints the settings menu.
+
+    PARAMS:
+    commands: list(string)
+    values: list
     '''
-    def print_settings_menu(self):
+    def print_settings_menu(self, commands, values):
         pretty_print("\nSETTINGS\n", TextColors.UNDERLINE)
         pretty_print("Press [ENTER] without typing anything to exit the menu.", TextColors.WARNING)
-        pretty_print("Press the corresponding key to toggle a setting.", TextColors.WARNING)
-        pretty_print("[0] Toggle cool setting", TextColors.WARNING)
-        pretty_print("[1] Display the day of the week next to each date", TextColors.WARNING)
-        pretty_print("[2] Display the number of days after today corresponding to each date", TextColors.WARNING)
+        pretty_print("Press the corresponding key to change a setting. If the setting requires you to specify a value, type the key followed by the desired value.", TextColors.WARNING)
+
+        descriptions = [
+            "Toggle cool setting",
+            "Display the day of the week next to each date",
+            "Display the number of days after today corresponding to each date",
+            "Limit the number of upcoming days displayed to a specified number (0 = no limit)",
+        ]
+
+        for i in range(len(descriptions)):
+            pretty_print(f"[{commands[i]}] {descriptions[i]} (currently {str(values[i]).upper()})", TextColors.WARNING)
         print()
 
 
@@ -628,17 +646,28 @@ class AgendaCommandLineController:
             'o': self.view_settings,
         }
 
-        # maps each settings command to the index of the setting it should change
+        # maps each settings command to the index of the setting it should change and
+        # whether that setting takes an argument, and if the setting takes an argument,
+        # a function that determines whether that string argument is valid
         self.settings_commands = {
-            '0': 0,
-            '1': 1,
-            '2': 2,
+            '0': (0, False, None),
+            '1': (1, False, None),
+            '2': (2, False, None),
+            '3': (3, True, lambda x: x.isdigit() and int(x) >= 0),
         }
 
         self.settings_names = [
             "random setting",
             "show weekday names",
             "show number of days from today",
+            "max number of upcoming days displayed (0 = no limit)",
+        ]
+
+        self.settings_defaults = [
+            False,
+            False,
+            False,
+            0,
         ]
 
         if os.path.isfile(SETTINGS_PATH):
@@ -655,14 +684,10 @@ class AgendaCommandLineController:
     Resets all user settings to their default values.
     '''
     def _reset_all_settings(self):
-        self.settings_list = [
-            False,
-            False,
-            False,
-        ]
+        self.settings_list = self.settings_defaults[:]
 
     def view_agenda(self, args):
-        self.agenda_view.print_agenda(self.settings_list[1], self.settings_list[2])
+        self.agenda_view.print_agenda(self.settings_list[1], self.settings_list[2], self.settings_list[3])
     
     def view_upcoming(self, args):
         self.agenda_view.print_upcoming_days(self.settings_list[1], self.settings_list[2])
@@ -718,7 +743,7 @@ class AgendaCommandLineController:
     args: list(string)
     '''
     def view_settings(self, args):
-        self.agenda_view.print_settings_menu()
+        self.agenda_view.print_settings_menu(list(self.settings_commands.keys()), self.settings_list)
         self.cur_menu = AgendaCommandLineController.Menu.SETTINGS
 
     '''
@@ -729,6 +754,20 @@ class AgendaCommandLineController:
     '''
     def settings_toggle_setting(self, index):
         self.settings_list[index] = not self.settings_list[index]
+        self.agenda_view.confirm_setting_changed(self.settings_names[index], str(self.settings_list[index]).upper())
+
+    '''
+    Called when the user sets the setting in the settings list at the given index in the list to
+    the given value. Uses the provided function to check that the argument provided is a valid
+    value for the setting.
+
+    PARAMS:
+    index: int
+    '''
+    def settings_set_setting(self, index, argument, is_valid):
+        if not is_valid(argument):
+            raise Exception("Invalid value provided for setting.")
+        self.settings_list[index] = int(argument)
         self.agenda_view.confirm_setting_changed(self.settings_names[index], str(self.settings_list[index]).upper())
 
     '''
@@ -767,7 +806,12 @@ class AgendaCommandLineController:
                 elif setting == str(False):
                     self.settings_list.append(False)
                 else:
-                    raise Exception("Unknown format for setting value.")
+                    self.settings_list.append(int(setting))
+                    #raise Exception("Unknown format for setting value.")
+
+        if len(self.settings_list) < len(self.settings_defaults):
+            for i in range(len(self.settings_list), len(self.settings_defaults)):
+                self.settings_list.append(self.settings_defaults[i])
 
     '''
     Checks whether the given string is one of the alternatives the user can write instead of
@@ -860,7 +904,11 @@ class AgendaCommandLineController:
             return False 
             
         try:
-            self.settings_toggle_setting(self.settings_commands[command_list[0]])
+            index, needs_argument, f = self.settings_commands[command_list[0]]
+            if needs_argument:
+                self.settings_set_setting(index, command_list[1], f) 
+            else:
+                self.settings_toggle_setting(index)
         except Exception as e:
             self.agenda_view.error(str(e))
 
