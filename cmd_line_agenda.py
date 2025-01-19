@@ -9,12 +9,12 @@ AGENDA_PATH = 'agenda_stored.txt'
 SETTINGS_PATH = 'user_settings.txt'
 
 class TextColors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
+    PURPLE = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
@@ -95,7 +95,7 @@ class Agenda:
                     self.earliest_date = day_date
 
         # ensures the agenda contains all days from today until the farthest day stored
-        self._add_days(self.earliest_date, self.farthest_date)
+        self._add_days(date.today(), self.farthest_date)
 
     '''
     Saves this agenda to the given file path using the format described above.
@@ -143,6 +143,8 @@ class Agenda:
     '''
     def get_tasks(self, day):
         task_list = []
+        if day not in self.agenda:
+            return task_list
         for task_tuple in self.agenda[day]:
             task_list.append(task_tuple)
         return task_list
@@ -297,10 +299,10 @@ class Agenda:
     '''
     def print_agenda(self):
         for date in self.agenda:
-            pretty_print(date, TextColors.OKCYAN)
+            pretty_print(date, TextColors.CYAN)
             index = 0
             for task, status in self.agenda[date]:
-                pretty_print('0' + str(index) if index < 10 else str(index), TextColors.OKGREEN, end=' ')
+                pretty_print('0' + str(index) if index < 10 else str(index), TextColors.GREEN, end=' ')
                 print(task)
                 index += 1
 
@@ -347,9 +349,9 @@ class AgendaCommandLineInterface:
 
             # display the date
             if day_date == date.today():
-                pretty_print(day_date, TextColors.OKCYAN + TextColors.UNDERLINE, end='')
+                pretty_print(day_date, TextColors.CYAN + TextColors.UNDERLINE, end='')
             else:
-                pretty_print(day_date, TextColors.OKBLUE, end='')
+                pretty_print(day_date, TextColors.BLUE, end='')
 
             # display number of days after today
             if show_relative_to_today:
@@ -360,14 +362,14 @@ class AgendaCommandLineInterface:
             index = 0
             for task, status in self.agenda.get_tasks(day_date):
                 if status == TaskStatus.DONE:
-                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.OKGREEN, end=' ')
-                    pretty_print('[D]', TextColors.OKGREEN, end=' ')
-                    pretty_print(task, TextColors.OKGREEN)
+                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.GREEN, end=' ')
+                    pretty_print('[D]', TextColors.GREEN, end=' ')
+                    pretty_print(task, TextColors.GREEN)
                 else:
-                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.WARNING, end=' ')
-                    pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.WARNING, end=' ')
+                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.YELLOW, end=' ')
+                    pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.YELLOW, end=' ')
                     if status == TaskStatus.IN_PROGRESS:
-                        pretty_print(task, TextColors.WARNING);
+                        pretty_print(task, TextColors.YELLOW);
                     else:
                         print(task)
                 index += 1
@@ -382,7 +384,7 @@ class AgendaCommandLineInterface:
     '''
     def _print_weekday(self, day_date):
         day_of_week = calendar.day_name[day_date.weekday()][:3].upper()
-        pretty_print('[' + day_of_week + ']', TextColors.OKCYAN if day_date == date.today() else TextColors.OKBLUE, end=' ')
+        pretty_print('[' + day_of_week + ']', TextColors.CYAN if day_date == date.today() else TextColors.BLUE, end=' ')
 
     '''
     Pretty prints the number of days after today corresponding to the given date. This should be printed
@@ -393,7 +395,7 @@ class AgendaCommandLineInterface:
     '''
     def _print_relative_to_today(self, day_date):
         day_diff = (day_date - date.today()).days
-        pretty_print(' [+' + str(day_diff) + ']', TextColors.OKCYAN if day_date == date.today() else TextColors.OKBLUE)
+        pretty_print(' [+' + str(day_diff) + ']', TextColors.CYAN if day_date == date.today() else TextColors.BLUE)
 
     '''
     Pretty prints all the past days stored in the associated agenda, separated initially and finally
@@ -404,32 +406,36 @@ class AgendaCommandLineInterface:
 
         self.agenda.refresh_today_date()
         for day_date in date_range_inclusive(date.today(), self.agenda.get_earliest_date()):
+            
+            agenda_tasks = self.agenda.get_tasks(day_date)
+            if not agenda_tasks:
+                continue
 
             if day_date == date.today():
-                pretty_print(day_date, TextColors.OKCYAN + TextColors.UNDERLINE)
+                pretty_print(day_date, TextColors.CYAN + TextColors.UNDERLINE)
             else:
-                pretty_print(day_date, TextColors.HEADER)
+                pretty_print(day_date, TextColors.PURPLE)
 
             index = 0
-            for task, status in self.agenda.get_tasks(day_date):
+            for task, status in agenda_tasks:
                 if day_date == date.today():
                     if status == TaskStatus.DONE:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.OKGREEN, end=' ')
-                        pretty_print('[D]', TextColors.OKGREEN, end=' ')
-                        pretty_print(task, TextColors.OKGREEN)
+                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.GREEN, end=' ')
+                        pretty_print('[D]', TextColors.GREEN, end=' ')
+                        pretty_print(task, TextColors.GREEN)
                     else:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.WARNING, end=' ')
-                        pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.WARNING, end=' ')
+                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.YELLOW, end=' ')
+                        pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.YELLOW, end=' ')
                         print(task)
                 else:
                     if status == TaskStatus.DONE:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.HEADER, end=' ')
-                        pretty_print('[D]', TextColors.HEADER, end=' ')
-                        pretty_print(task, TextColors.HEADER)
+                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.PURPLE, end=' ')
+                        pretty_print('[D]', TextColors.PURPLE, end=' ')
+                        pretty_print(task, TextColors.PURPLE)
                     else:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.FAIL, end=' ')
-                        pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.FAIL, end=' ')
-                        pretty_print(task, TextColors.FAIL)
+                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.RED, end=' ')
+                        pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.RED, end=' ')
+                        pretty_print(task, TextColors.RED)
                 index += 1
 
             print()
@@ -445,63 +451,69 @@ class AgendaCommandLineInterface:
         self.agenda.refresh_today_date()
 
         if (self.agenda.get_earliest_date() == date.today()):
-            pretty_print("No overdue items!\n", TextColors.OKGREEN)
+            pretty_print("No overdue items!\n", TextColors.GREEN)
             return
 
         overdue_tasks = False
 
         for day_date in date_range_inclusive(self.agenda.get_earliest_date(), date.today() - timedelta(1)):
+
+            agenda_tasks = self.agenda.get_tasks(day_date)
+            if not agenda_tasks:
+                continue 
+
             index = 0
 
-            outstanding_tasks = [task[1] for task in self.agenda.get_tasks(day_date) if task[1] != TaskStatus.DONE]
+            outstanding_tasks = [task[1] for task in agenda_tasks if task[1] != TaskStatus.DONE]
 
             if outstanding_tasks:
                 overdue_tasks = True
-                pretty_print(day_date, TextColors.FAIL)
+                pretty_print(day_date, TextColors.RED)
             
-            for task, status in self.agenda.get_tasks(day_date):
+            for task, status in agenda_tasks:
                 if status != TaskStatus.DONE:
-                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.FAIL, end=' ')
-                    pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.FAIL, end=' ')
-                    pretty_print(task, TextColors.FAIL)
+                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.RED, end=' ')
+                    pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.RED, end=' ')
+                    pretty_print(task, TextColors.RED)
                 index += 1
 
             if outstanding_tasks:
                 print()
 
         if not overdue_tasks:
-            pretty_print("No overdue items!\n", TextColors.OKGREEN)
+            pretty_print("No overdue items!\n", TextColors.GREEN)
 
     '''
     Pretty prints a welcome message.
     '''
     def print_welcome(self):
         print()
-        pretty_print("COMMAND-LINE AGENDA APPLICATION", TextColors.OKCYAN + TextColors.UNDERLINE)
-        pretty_print("Made by Dustin Zhang for personal use, 2025-01-11.", TextColors.OKCYAN)
+        pretty_print("COMMAND-LINE AGENDA APPLICATION", TextColors.CYAN + TextColors.UNDERLINE)
+        pretty_print("Made by Dustin Zhang for personal use, 2025-01-11.", TextColors.CYAN)
 
     '''
     Pretty prints the instructions.
     '''
     def print_instructions(self):
         pretty_print("\nINSTRUCTIONS\n", TextColors.UNDERLINE)
-        pretty_print("Press [ENTER] without typing anything to view your agenda.", TextColors.WARNING)
-        pretty_print("Type 'vu' to view all upcoming days.", TextColors.WARNING)
-        pretty_print("Type 'vp' to view all past days.", TextColors.WARNING)
-        pretty_print("Type 'vl' to view all late tasks.\n", TextColors.WARNING)
-        pretty_print("Type 'a' followed by a YYYY-MM-DD date and a text description to add a NOT_STARTED task to that day.", TextColors.WARNING)
-        pretty_print("Type 'r' followed by a YYYY-MM-DD date and the index of a task, to remove that task from that day.", TextColors.WARNING)
-        pretty_print("Type 'm' followed by a YYYY-MM-DD date, the index of a task, and a text description to rename that task.", TextColors.WARNING)
-        pretty_print("Type 'u' followed by a YYYY-MM-DD date and the index of a task to cycle its status through NOT_STARTED, IN_PROGRESS, and DONE.\n", TextColors.WARNING)
-        pretty_print("Type 's' to save all changes. REMEMBER TO DO THIS! Otherwise your changes may be lost when you close the program.", TextColors.WARNING)
-        pretty_print("Type 'sq' to save and quit, or 'q'/'quit' to quit without saving.", TextColors.WARNING)
-        pretty_print("Type 'o' to open a settings menu.", TextColors.WARNING)
-        pretty_print("Type 'help' to view these instructions.\n", TextColors.WARNING)
+        pretty_print("Press [ENTER] without typing anything to view your agenda.", TextColors.YELLOW)
+        pretty_print("Type 'vu' to view all upcoming days.", TextColors.YELLOW)
+        pretty_print("Type 'vp' to view all past days.", TextColors.YELLOW)
+        pretty_print("Type 'vl' to view all late tasks.\n", TextColors.YELLOW)
+        pretty_print("Type 'a' followed by a YYYY-MM-DD date and a text description to add a NOT_STARTED task to that day.", TextColors.YELLOW)
+        pretty_print("Type 'r' followed by a YYYY-MM-DD date and the index of a task, to remove that task from that day.", TextColors.YELLOW)
+        pretty_print("Type 'm' followed by a YYYY-MM-DD date, the index of a task, and a text description to rename that task.", TextColors.YELLOW)
+        pretty_print("Type 'u' followed by a YYYY-MM-DD date and the index of a task to cycle its status through NOT_STARTED, IN_PROGRESS, and DONE.\n", TextColors.YELLOW)
+        pretty_print("Type 's' to save all changes. REMEMBER TO DO THIS! Otherwise your changes may be lost when you close the program.", TextColors.YELLOW)
+        pretty_print("Type 'sq' to save and quit, or 'q'/'quit' to quit without saving.", TextColors.YELLOW)
+        pretty_print("Type 'o' to open a settings menu.", TextColors.YELLOW)
+        pretty_print("Type 'help' to view these instructions.\n", TextColors.YELLOW)
         pretty_print("Some (possibly) helpful notes:\n", TextColors.BOLD)
-        pretty_print("[N] means NOT_STARTED, [I] means IN_PROGRESS, and [D] means DONE.\n", TextColors.WARNING)
-        pretty_print("Whenever you need to type a date, you can instead type:", TextColors.WARNING)
-        pretty_print("*   \"today\" or \"now\" for today's date", TextColors.WARNING)
-        pretty_print("*   \"+N\" where N is a number of days after today (e.g. \"+7\" means one week from today's date)", TextColors.WARNING)
+        pretty_print("[N] means NOT_STARTED, [I] means IN_PROGRESS, and [D] means DONE.\n", TextColors.YELLOW)
+        pretty_print("Whenever you need to type a date, you can instead type:", TextColors.YELLOW)
+        pretty_print("*   \"today\" or \"now\" for today's date", TextColors.YELLOW)
+        pretty_print("*   \"+N\" where N is a number of days after today (e.g. \"+7\" means one week from today's date)", TextColors.YELLOW)
+        pretty_print("*   MM-DD instead of YYYY-MM-DD for the year to be implied", TextColors.YELLOW)
         print()
 
     '''
@@ -513,8 +525,8 @@ class AgendaCommandLineInterface:
     '''
     def print_settings_menu(self, commands, values):
         pretty_print("\nSETTINGS\n", TextColors.UNDERLINE)
-        pretty_print("Press [ENTER] without typing anything to exit the menu.", TextColors.WARNING)
-        pretty_print("Press the corresponding key to change a setting. If the setting requires you to specify a value, type the key followed by the desired value.", TextColors.WARNING)
+        pretty_print("Press [ENTER] without typing anything to exit the menu.", TextColors.YELLOW)
+        pretty_print("Press the corresponding key to change a setting. If the setting requires you to specify a value, type the key followed by the desired value.", TextColors.YELLOW)
 
         descriptions = [
             "Toggle cool setting",
@@ -524,7 +536,7 @@ class AgendaCommandLineInterface:
         ]
 
         for i in range(len(descriptions)):
-            pretty_print(f"[{commands[i]}] {descriptions[i]} (currently {str(values[i]).upper()})", TextColors.WARNING)
+            pretty_print(f"[{commands[i]}] {descriptions[i]} (currently {str(values[i]).upper()})", TextColors.YELLOW)
         print()
 
 
@@ -575,19 +587,19 @@ class AgendaCommandLineInterface:
     '''
     def error(self, error_message):
         print("Something went wrong, sorry!")
-        pretty_print(error_message, TextColors.FAIL)
+        pretty_print(error_message, TextColors.RED)
 
     '''
     Pretty prints user quit without saving confirmation.
     '''
     def quit_confirmation(self):
-        pretty_print("Are you sure you want to quit? Your changes will not be saved. (y/n) ", TextColors.WARNING, end='')
+        pretty_print("Are you sure you want to quit? Your changes will not be saved. (y/n) ", TextColors.YELLOW, end='')
 
     '''
     Pretty prints a little goodbye message.
     '''
     def goodbye(self):
-        pretty_print("Goodbye!", TextColors.WARNING)
+        pretty_print("Goodbye!", TextColors.YELLOW)
 
     '''
     Pretty prints a prompt for the user to change a setting if the user is in the settings menu.
@@ -599,13 +611,13 @@ class AgendaCommandLineInterface:
     Pretty prints confirmation that a user changed a setting.
     '''
     def confirm_setting_changed(self, setting_name, new_value):
-        pretty_print(f"Changed setting \"{setting_name}\" to {new_value}.", TextColors.WARNING)
+        pretty_print(f"Changed setting \"{setting_name}\" to {new_value}.", TextColors.YELLOW)
 
     '''
     Pretty prints confirmation that any updated settings have been saved.
     '''
     def confirm_settings_saved(self):
-        pretty_print(f"Settings saved to {SETTINGS_PATH}.", TextColors.WARNING)
+        pretty_print(f"Settings saved to {SETTINGS_PATH}.", TextColors.YELLOW)
 
 
 class AgendaCommandLineController:
@@ -675,7 +687,7 @@ class AgendaCommandLineController:
                 self._load_saved_settings()
             except:
                 # strictly speaking this should be in the view but oh well
-                pretty_print("\nWARNING: Failed to load saved user settings from disk. Settings have been temporarily reset to default and will be saved when they are next modified.", TextColors.FAIL)
+                pretty_print("\nWARNING: Failed to load saved user settings from disk. Settings have been temporarily reset to default and will be saved when they are next modified.", TextColors.RED)
                 self._reset_all_settings()
         else:
             self._reset_all_settings()
@@ -817,7 +829,8 @@ class AgendaCommandLineController:
     Checks whether the given string is one of the alternatives the user can write instead of
     putting in a date. If so, returns the date that corresponds to that alternative. For example, if
     today's date is 2025-01-11 and the string is "today", returns 2025-01-11. Otherwise, attempts
-    to parse that string as a date.
+    to parse that string as a date. At minimum, the month and day must be provided as MM-DD. If the
+    year is not provided, assumes that the given date is the soonest one possible in the future.
 
     PARAMS:
     date_string: string
@@ -834,6 +847,28 @@ class AgendaCommandLineController:
         # the user can write +N where N is a number of days after today
         elif '+' in date_string:
             return date.today() + timedelta(int(date_string.split('+')[1]))
+
+        # other possible ways of writing the date
+        date_string = '-'.join(date_string.split('/'))
+        date_string = '-'.join(date_string.split('.'))
+        date_split = date_string.split('-')
+
+        # the user can write MM-DD instead of YYYY-MM-DD, in which case the year is inferred
+        if len(date_split) <= 1 or len(date_split) > 3:
+            raise Exception("Invalid date format provided.")
+        elif len(date_split) == 2:
+            if len(date_split[0]) == 1:
+                date_split[0] = '0' + date_split[0]
+                date_string = '-'.join(date_split)
+            if len(date_split[1]) == 1:
+                date_split[1] = '0' + date_split[1]
+                date_string = '-'.join(date_split)
+
+            year = date.today().year
+            if date.fromisoformat(str(year) + '-' + date_string) < date.today():
+                date_string = str(year + 1) + '-' + date_string
+            else:
+                date_string = str(year) + '-' + date_string
 
         return date.fromisoformat(date_string)
 
