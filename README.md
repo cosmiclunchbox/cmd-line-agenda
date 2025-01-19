@@ -5,7 +5,7 @@ Command-line-based agenda application made by Dustin Z. Designed primarily for m
 ### To-do list
 
 - Add a way to mark tasks as important
-- Add an option to limit how many future days are displayed
+- [DONE!] Add an option to limit how many future days are displayed
 - Add more date entry alternatives (like MM-DD)
 - Add autosave option
 - Add more text colors
