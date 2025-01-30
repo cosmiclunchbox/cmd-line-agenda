@@ -676,6 +676,7 @@ class AgendaCommandLineController:
             '3': (3, True, lambda x: x.isdigit() and int(x) >= 0),
             '4': (4, False, None),
             '5': (5, False, None),
+            '6': (6, False, None),
         }
 
         self.settings_names = [
@@ -685,6 +686,7 @@ class AgendaCommandLineController:
             "max number of upcoming days displayed (0 = no limit)",
             "show past days in reverse order",
             "show upcoming days in reverse order",
+            "autosave all changes",
         ]
 
         self.settings_descriptions = [
@@ -694,6 +696,7 @@ class AgendaCommandLineController:
             "Limit the number of upcoming days displayed to a specified number (0 = no limit)",
             "Display past days in reverse order (earliest first, today last)",
             "Display upcoming days in reverse order (latest first, today last)",
+            "Auto-save agenda when any change is made",
         ]
 
         self.settings_defaults = [
@@ -701,6 +704,7 @@ class AgendaCommandLineController:
             False,
             False,
             0,
+            False,
             False,
             False,
         ]
@@ -740,22 +744,32 @@ class AgendaCommandLineController:
         self.agenda.save(AGENDA_PATH)
         self.agenda_view.save_successful()
 
+    def _handle_autosaving(self):
+        if self.settings_list[6]:
+            self.save_agenda([])
+
     def add_item(self, args):
         day_date = self._parse_date(args[0])
         description = ' '.join(args[1:])
         self.agenda.add_task(day_date, description, TaskStatus.NOT_STARTED)
         self.agenda_view.add_item_successful(day_date, description)
 
+        self._handle_autosaving()
+
     def remove_item(self, args):
         day_date = self._parse_date(args[0])
         index = int(args[1])
         self.agenda_view.remove_item_successful(day_date, self.agenda.remove_task(day_date, index)[0])
+
+        self._handle_autosaving()
 
     def update_description_item(self, args):
         day_date = self._parse_date(args[0])
         index = int(args[1])
         description = ' '.join(args[2:])
         self.agenda_view.modify_item_successful(day_date, self.agenda.modify_task(day_date, index, description), description)
+
+        self._handle_autosaving()
 
     def update_status_item(self, args):
         next_enum = {
@@ -770,6 +784,8 @@ class AgendaCommandLineController:
         self.agenda.update_task_status(day_date, index, next_enum[old_status])
         description, new_status = self.agenda.get_tasks(day_date)[index]
         self.agenda_view.update_status_item_successful(day_date, description, old_status.value, new_status.value)
+
+        self._handle_autosaving()
 
     '''
     Called when the user brings up the settings menu.
