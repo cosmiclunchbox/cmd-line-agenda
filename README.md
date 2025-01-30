@@ -8,7 +8,7 @@ Command-line-based agenda application made by Dustin Z. Designed primarily for m
 - [DONE!] Add an option to limit how many future days are displayed
 - [DONE!] Add option to enter date as MM-DD to imply year
 - Add more date entry alternatives for convenience
-- Add autosave option
+- [DONE!] Add autosave option
 - Add more text colors
 - Change the save file format to something more flexible
 - Split the code into multiple files
