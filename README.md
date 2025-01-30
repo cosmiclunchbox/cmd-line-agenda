@@ -6,7 +6,8 @@ Command-line-based agenda application made by Dustin Z. Designed primarily for m
 
 - Add a way to mark tasks as important
 - [DONE!] Add an option to limit how many future days are displayed
-- Add more date entry alternatives (like MM-DD)
+- [DONE!] Add option to enter date as MM-DD to imply year
+- Add more date entry alternatives for convenience
 - Add autosave option
 - Add more text colors
 - Change the save file format to something more flexible
