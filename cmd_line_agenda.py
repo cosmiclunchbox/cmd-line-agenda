@@ -318,10 +318,10 @@ class AgendaCommandLineInterface:
     def __init__(self, agenda):
         self.agenda = agenda
 
-    def print_agenda(self, show_weekday=False, show_relative_to_today=False, limit_number_shown=0):
+    def print_agenda(self, show_weekday=False, show_relative_to_today=False, limit_number_shown=0, latest_first=False):
         print()
         pretty_print("--- YOUR AGENDA ---",  TextColors.BOLD)
-        self.print_upcoming_days(show_weekday, show_relative_to_today, limit_number_shown)
+        self.print_upcoming_days(show_weekday=show_weekday, show_relative_to_today=show_relative_to_today, limit_number_shown=limit_number_shown, latest_first=latest_first)
         print()
         pretty_print("--- OVERDUE ITEMS ---", TextColors.BOLD)
         self.print_overdue()
@@ -330,7 +330,7 @@ class AgendaCommandLineInterface:
     Pretty prints all the upcoming days stored in the associated agenda, separated initially and finally
     by an empty row. Starts from today and goes forward in time.
     '''
-    def print_upcoming_days(self, show_weekday=False, show_relative_to_today=False, limit_number_shown=0):
+    def print_upcoming_days(self, show_weekday=False, show_relative_to_today=False, limit_number_shown=0, latest_first=False):
         print()
 
         self.agenda.refresh_today_date()
@@ -340,8 +340,15 @@ class AgendaCommandLineInterface:
             upper_bound = date.today() + timedelta(limit_number_shown)
         else:
             upper_bound = self.agenda.get_latest_date()
+
+        # if printing in reversed order (days further in the future first)
+        if latest_first:
+            day_range = date_range_inclusive(upper_bound, date.today())
+        # otherwise, print them starting from today and going forward in time
+        else:
+            day_range = date_range_inclusive(date.today(), upper_bound)
         
-        for day_date in date_range_inclusive(date.today(), upper_bound):
+        for day_date in day_range:
 
             # display what day of week it is
             if show_weekday:
@@ -401,14 +408,22 @@ class AgendaCommandLineInterface:
     Pretty prints all the past days stored in the associated agenda, separated initially and finally
     by an empty row. Starts from today and goes backward in time.
     '''
-    def print_past_days(self):
+    def print_past_days(self, earliest_first=False):
         print()
 
         self.agenda.refresh_today_date()
-        for day_date in date_range_inclusive(date.today(), self.agenda.get_earliest_date()):
+
+        # if printing in reversed order (earliest days first)
+        if earliest_first:
+            day_range = date_range_inclusive(self.agenda.get_earliest_date(), date.today())
+        # otherwise, print them starting from today and going further back in time
+        else:
+            day_range = date_range_inclusive(date.today(), self.agenda.get_earliest_date())
+
+        for day_date in day_range:
             
             agenda_tasks = self.agenda.get_tasks(day_date)
-            if not agenda_tasks:
+            if day_date != date.today() and not agenda_tasks:
                 continue
 
             if day_date == date.today():
@@ -523,17 +538,10 @@ class AgendaCommandLineInterface:
     commands: list(string)
     values: list
     '''
-    def print_settings_menu(self, commands, values):
+    def print_settings_menu(self, commands, values, descriptions):
         pretty_print("\nSETTINGS\n", TextColors.UNDERLINE)
         pretty_print("Press [ENTER] without typing anything to exit the menu.", TextColors.YELLOW)
         pretty_print("Press the corresponding key to change a setting. If the setting requires you to specify a value, type the key followed by the desired value.", TextColors.YELLOW)
-
-        descriptions = [
-            "Toggle cool setting",
-            "Display the day of the week next to each date",
-            "Display the number of days after today corresponding to each date",
-            "Limit the number of upcoming days displayed to a specified number (0 = no limit)",
-        ]
 
         for i in range(len(descriptions)):
             pretty_print(f"[{commands[i]}] {descriptions[i]} (currently {str(values[i]).upper()})", TextColors.YELLOW)
@@ -666,6 +674,8 @@ class AgendaCommandLineController:
             '1': (1, False, None),
             '2': (2, False, None),
             '3': (3, True, lambda x: x.isdigit() and int(x) >= 0),
+            '4': (4, False, None),
+            '5': (5, False, None),
         }
 
         self.settings_names = [
@@ -673,6 +683,17 @@ class AgendaCommandLineController:
             "show weekday names",
             "show number of days from today",
             "max number of upcoming days displayed (0 = no limit)",
+            "show past days in reverse order",
+            "show upcoming days in reverse order",
+        ]
+
+        self.settings_descriptions = [
+            "Toggle cool setting",
+            "Display the day of the week next to each date",
+            "Display the number of days after today corresponding to each date",
+            "Limit the number of upcoming days displayed to a specified number (0 = no limit)",
+            "Display past days in reverse order (earliest first, today last)",
+            "Display upcoming days in reverse order (latest first, today last)",
         ]
 
         self.settings_defaults = [
@@ -680,6 +701,8 @@ class AgendaCommandLineController:
             False,
             False,
             0,
+            False,
+            False,
         ]
 
         if os.path.isfile(SETTINGS_PATH):
@@ -699,13 +722,13 @@ class AgendaCommandLineController:
         self.settings_list = self.settings_defaults[:]
 
     def view_agenda(self, args):
-        self.agenda_view.print_agenda(self.settings_list[1], self.settings_list[2], self.settings_list[3])
+        self.agenda_view.print_agenda(show_weekday=self.settings_list[1], show_relative_to_today=self.settings_list[2], limit_number_shown=self.settings_list[3], latest_first=self.settings_list[5])
     
     def view_upcoming(self, args):
-        self.agenda_view.print_upcoming_days(self.settings_list[1], self.settings_list[2])
+        self.agenda_view.print_upcoming_days(show_weekday=self.settings_list[1], show_relative_to_today=self.settings_list[2], latest_first=self.settings_list[5])
 
     def view_past(self, args):
-        self.agenda_view.print_past_days()
+        self.agenda_view.print_past_days(self.settings_list[4])
 
     def view_overdue(self, args):
         self.agenda_view.print_overdue()
@@ -755,7 +778,7 @@ class AgendaCommandLineController:
     args: list(string)
     '''
     def view_settings(self, args):
-        self.agenda_view.print_settings_menu(list(self.settings_commands.keys()), self.settings_list)
+        self.agenda_view.print_settings_menu(list(self.settings_commands.keys()), self.settings_list, self.settings_descriptions)
         self.cur_menu = AgendaCommandLineController.Menu.SETTINGS
 
     '''
