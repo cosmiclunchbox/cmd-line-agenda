@@ -883,6 +883,9 @@ class AgendaCommandLineController:
         if date_string in ('today', 'now'):
             return date.today()
 
+        elif date_string in ('tomorrow'):
+            return date.today() + timedelta(1)
+
         # the user can write +N where N is a number of days after today
         elif '+' in date_string:
             return date.today() + timedelta(int(date_string.split('+')[1]))
