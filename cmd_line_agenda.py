@@ -527,6 +527,7 @@ class AgendaCommandLineInterface:
         pretty_print("[N] means NOT_STARTED, [I] means IN_PROGRESS, and [D] means DONE.\n", TextColors.YELLOW)
         pretty_print("Whenever you need to type a date, you can instead type:", TextColors.YELLOW)
         pretty_print("*   \"today\" or \"now\" for today's date", TextColors.YELLOW)
+        pretty_print("*   \"tomorrow\" for tomorrow's date", TextColors.YELLOW)
         pretty_print("*   \"+N\" where N is a number of days after today (e.g. \"+7\" means one week from today's date)", TextColors.YELLOW)
         pretty_print("*   MM-DD instead of YYYY-MM-DD for the year to be implied", TextColors.YELLOW)
         print()
