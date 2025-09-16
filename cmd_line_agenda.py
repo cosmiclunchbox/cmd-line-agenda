@@ -518,18 +518,21 @@ class AgendaCommandLineInterface:
         pretty_print("Type 'a' followed by a YYYY-MM-DD date and a text description to add a NOT_STARTED task to that day.", TextColors.YELLOW)
         pretty_print("Type 'r' followed by a YYYY-MM-DD date and the index of a task, to remove that task from that day.", TextColors.YELLOW)
         pretty_print("Type 'm' followed by a YYYY-MM-DD date, the index of a task, and a text description to rename that task.", TextColors.YELLOW)
-        pretty_print("Type 'u' followed by a YYYY-MM-DD date and the index of a task to cycle its status through NOT_STARTED, IN_PROGRESS, and DONE.\n", TextColors.YELLOW)
+        pretty_print("Type 'u' followed by a YYYY-MM-DD date and the index of a task to cycle its status through NOT_STARTED, IN_PROGRESS, and DONE.", TextColors.YELLOW)
+        pretty_print("Type 'p' followed by a YYYY-MM-DD date, the index of a task, and another YYYY-MM-DD date to push it from the first day to the second.\n", TextColors.YELLOW)
         pretty_print("Type 's' to save all changes. REMEMBER TO DO THIS! Otherwise your changes may be lost when you close the program.", TextColors.YELLOW)
         pretty_print("Type 'sq' to save and quit, or 'q'/'quit' to quit without saving.", TextColors.YELLOW)
         pretty_print("Type 'o' to open a settings menu.", TextColors.YELLOW)
         pretty_print("Type 'help' to view these instructions.\n", TextColors.YELLOW)
         pretty_print("Some (possibly) helpful notes:\n", TextColors.BOLD)
         pretty_print("[N] means NOT_STARTED, [I] means IN_PROGRESS, and [D] means DONE.\n", TextColors.YELLOW)
-        pretty_print("Whenever you need to type a date, you can instead type:", TextColors.YELLOW)
+        pretty_print("Whenever you need to type a date, you can substitute the following:", TextColors.YELLOW)
         pretty_print("*   \"today\" or \"now\" for today's date", TextColors.YELLOW)
         pretty_print("*   \"tomorrow\" for tomorrow's date", TextColors.YELLOW)
         pretty_print("*   \"+N\" where N is a number of days after today (e.g. \"+7\" means one week from today's date)", TextColors.YELLOW)
         pretty_print("*   MM-DD instead of YYYY-MM-DD for the year to be implied", TextColors.YELLOW)
+        pretty_print("*   \"/\" or \".\" instead of \"-\" (e.g. 2025/01/15 or 11.04)", TextColors.YELLOW)
+        pretty_print("*   a digit N on its own instead of \"0N\" for a month or day (e.g. 9/1 instead of 09/01)", TextColors.YELLOW)
         print()
 
     '''
@@ -590,6 +593,12 @@ class AgendaCommandLineInterface:
     '''
     def update_status_item_successful(self, day, description, old_status, new_status):
         print(f"Successfully updated status of task \"{description}\" from \"{old_status}\" to \"{new_status}\" under {day}.")
+
+    '''
+    Pretty prints agenda item moved to new day confirmation.
+    '''
+    def change_date_item_successful(self, old_day, description, new_day):
+        print(f"Successfully moved task \"{description}\" from {old_day} to {new_day}.")
 
     '''
     Pretty prints an error message.
@@ -664,6 +673,7 @@ class AgendaCommandLineController:
             'r': self.remove_item,
             'm': self.update_description_item,
             'u': self.update_status_item,
+            'p': self.change_date_item,
             'o': self.view_settings,
         }
 
@@ -786,6 +796,16 @@ class AgendaCommandLineController:
         description, new_status = self.agenda.get_tasks(day_date)[index]
         self.agenda_view.update_status_item_successful(day_date, description, old_status.value, new_status.value)
 
+        self._handle_autosaving()
+
+    def change_date_item(self, args):
+        day_date = self._parse_date(args[0])
+        index = int(args[1])
+        new_date = self._parse_date(args[2])
+        description, status = self.agenda.remove_task(day_date, index)
+        self.agenda.add_task(new_date, description, status)
+        self.agenda_view.change_date_item_successful(day_date, description, new_date)
+        
         self._handle_autosaving()
 
     '''
