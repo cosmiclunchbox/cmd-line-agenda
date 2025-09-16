@@ -899,13 +899,18 @@ class AgendaCommandLineController:
         # the user can write MM-DD instead of YYYY-MM-DD, in which case the year is inferred
         if len(date_split) <= 1 or len(date_split) > 3:
             raise Exception("Invalid date format provided.")
-        elif len(date_split) == 2:
-            if len(date_split[0]) == 1:
-                date_split[0] = '0' + date_split[0]
-                date_string = '-'.join(date_split)
-            if len(date_split[1]) == 1:
-                date_split[1] = '0' + date_split[1]
-                date_string = '-'.join(date_split)
+        
+        # adds a leading 0 to the month or day if necessary
+        if len(date_split[-1]) == 1:
+            date_split[-1] = '0' + date_split[-1]
+            date_string = '-'.join(date_split)
+        if len(date_split[-2]) == 1:
+            date_split[-2] = '0' + date_split[-2]
+            date_string = '-'.join(date_split)
+
+        # if no date is provided, the year is assumed to be either this current year, or the
+        # next year if the given month and day for this year have already passed
+        if len(date_split) == 2:
 
             year = date.today().year
             if date.fromisoformat(str(year) + '-' + date_string) < date.today():
