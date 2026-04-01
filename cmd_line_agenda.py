@@ -347,6 +347,12 @@ class AgendaCommandLineInterface:
         # otherwise, print them starting from today and going forward in time
         else:
             day_range = date_range_inclusive(date.today(), upper_bound)
+
+        status_to_colors = {
+            TaskStatus.NOT_STARTED: (None, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.IN_PROGRESS: (TextColors.YELLOW, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (TextColors.GREEN, TextColors.GREEN, TextColors.GREEN)
+        }
         
         for day_date in day_range:
 
@@ -368,20 +374,32 @@ class AgendaCommandLineInterface:
 
             index = 0
             for task, status in self.agenda.get_tasks(day_date):
-                if status == TaskStatus.DONE:
-                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.GREEN, end=' ')
-                    pretty_print('[D]', TextColors.GREEN, end=' ')
-                    pretty_print(task, TextColors.GREEN)
-                else:
-                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.YELLOW, end=' ')
-                    pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.YELLOW, end=' ')
-                    if status == TaskStatus.IN_PROGRESS:
-                        pretty_print(task, TextColors.YELLOW);
-                    else:
-                        print(task)
+                name_color, index_color, status_color = status_to_colors[status]
+                self._print_task(task, index, status, name_color, index_color, status_color)
                 index += 1
 
             print()
+
+    '''
+    Pretty prints the given task as one item in a list of tasks (i.e. under a day). Displays the index of the
+    task in the list, the status of the task as a single letter, and the name of the task, printed using the
+    specified colors.
+
+    PARAMS:
+    task_name: string
+    task_index: int
+    task_status: TaskStatus
+    name_color: TextColor | None
+    index_color: TextColor | None
+    status_color: TextColor | None
+    '''
+    def _print_task(self, task_name, task_index, task_status, name_color, index_color, status_color):
+        index_as_string = '0' + str(task_index) if task_index < 10 else str(task_index)
+        status_as_string = '[' + task_status.value[0] + ']'
+
+        pretty_print(index_as_string, index_color, end=' ')
+        pretty_print(status_as_string, status_color, end=' ')
+        pretty_print(task_name, name_color)
 
     '''
     Pretty prints the day of the week. This should be printed immediately before the date itself.
@@ -420,6 +438,18 @@ class AgendaCommandLineInterface:
         else:
             day_range = date_range_inclusive(date.today(), self.agenda.get_earliest_date())
 
+        status_to_colors_today = {
+            TaskStatus.NOT_STARTED: (None, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.IN_PROGRESS: (TextColors.YELLOW, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (TextColors.GREEN, TextColors.GREEN, TextColors.GREEN)
+        }
+
+        status_to_colors_past = {
+            TaskStatus.NOT_STARTED: (TextColors.RED, TextColors.RED, TextColors.RED),
+            TaskStatus.IN_PROGRESS: (TextColors.RED, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (TextColors.PURPLE, TextColors.PURPLE, TextColors.PURPLE)
+        }
+
         for day_date in day_range:
             
             agenda_tasks = self.agenda.get_tasks(day_date)
@@ -434,23 +464,10 @@ class AgendaCommandLineInterface:
             index = 0
             for task, status in agenda_tasks:
                 if day_date == date.today():
-                    if status == TaskStatus.DONE:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.GREEN, end=' ')
-                        pretty_print('[D]', TextColors.GREEN, end=' ')
-                        pretty_print(task, TextColors.GREEN)
-                    else:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.YELLOW, end=' ')
-                        pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.YELLOW, end=' ')
-                        print(task)
+                    name_color, index_color, status_color = status_to_colors_today[status]
                 else:
-                    if status == TaskStatus.DONE:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.PURPLE, end=' ')
-                        pretty_print('[D]', TextColors.PURPLE, end=' ')
-                        pretty_print(task, TextColors.PURPLE)
-                    else:
-                        pretty_print('0' + str(index) if index < 10 else str(index), TextColors.RED, end=' ')
-                        pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.RED, end=' ')
-                        pretty_print(task, TextColors.RED)
+                    name_color, index_color, status_color = status_to_colors_past[status]
+                self._print_task(task, index, status, name_color, index_color, status_color)
                 index += 1
 
             print()
@@ -471,6 +488,12 @@ class AgendaCommandLineInterface:
 
         overdue_tasks = False
 
+        status_to_colors = {
+            TaskStatus.NOT_STARTED: (TextColors.RED, TextColors.RED, TextColors.RED),
+            TaskStatus.IN_PROGRESS: (TextColors.RED, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: None # will not be printed
+        }
+
         for day_date in date_range_inclusive(self.agenda.get_earliest_date(), date.today() - timedelta(1)):
 
             agenda_tasks = self.agenda.get_tasks(day_date)
@@ -487,9 +510,8 @@ class AgendaCommandLineInterface:
             
             for task, status in agenda_tasks:
                 if status != TaskStatus.DONE:
-                    pretty_print('0' + str(index) if index < 10 else str(index), TextColors.RED, end=' ')
-                    pretty_print('[' + ('I' if status == TaskStatus.IN_PROGRESS else 'N') + ']', TextColors.RED, end=' ')
-                    pretty_print(task, TextColors.RED)
+                    name_color, index_color, status_color = status_to_colors[status]
+                    self._print_task(task, index, status, name_color, index_color, status_color)
                 index += 1
 
             if outstanding_tasks:
@@ -1044,7 +1066,10 @@ text: string
 color: TextColors.color
 '''
 def pretty_print(text, color, end='\n'):
-    print(f'{color}{text}{TextColors.ENDC}', end=end)
+    if color:
+        print(f'{color}{text}{TextColors.ENDC}', end=end)
+    else:
+        print(f'{text}', end=end)
 
 '''
 Returns a list containing all the dates from the start date to the end date, in increasing order if
