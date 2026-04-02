@@ -347,38 +347,247 @@ class AgendaCommandLineInterface:
         # otherwise, print them starting from today and going forward in time
         else:
             day_range = date_range_inclusive(date.today(), upper_bound)
+        
+        for day_date in day_range:
 
+            self._print_all_tasks_for_day(
+                day_date,
+                self._upcoming_days_date_color_scheme,
+                self._upcoming_days_tasks_color_scheme,
+                show_day_of_week=show_weekday,
+                show_count_relative_to_today=show_relative_to_today,
+                underline_today=True,
+                add_newline_at_end=True
+            )
+    
+    '''
+    Maps a task to the colors used to display it based on the color scheme for upcoming days.
+
+    PARAMS:
+    task_name: string
+    task_index: int
+    task_status: TaskStatus
+    task_date: date
+
+    RETURNS:
+    (TextColor, TextColor, TextColor): tuple consisting of the display colors for the task name, the task index, and
+    the task status, in that order. None represents the default color.
+    '''
+    def _upcoming_days_tasks_color_scheme(self, task_name, task_index, task_status, task_date):
         status_to_colors = {
             TaskStatus.NOT_STARTED: (None, TextColors.YELLOW, TextColors.YELLOW),
             TaskStatus.IN_PROGRESS: (TextColors.YELLOW, TextColors.YELLOW, TextColors.YELLOW),
             TaskStatus.DONE: (TextColors.GREEN, TextColors.GREEN, TextColors.GREEN)
         }
+        return status_to_colors[task_status]
+    
+    '''
+    Maps a date to the color used to display it based on the color scheme for upcoming days.
+
+    PARAMS:
+    day_date: date
+
+    RETURNS:
+    TextColor: the color in which the date information is printed
+    '''
+    def _upcoming_days_date_color_scheme(self, day_date):
+        return TextColors.CYAN if day_date == date.today() else TextColors.BLUE
+    
+    '''
+    Maps a task to the colors used to display it based on the color scheme for past days.
+
+    PARAMS:
+    task_name: string
+    task_index: int
+    task_status: TaskStatus
+    task_date: date
+
+    RETURNS:
+    (TextColor, TextColor, TextColor): tuple consisting of the display colors for the task name, the task index, and
+    the task status, in that order. None represents the default color.
+    '''
+    def _past_days_tasks_color_scheme(self, task_name, task_index, task_status, task_date):
+        status_to_colors_today = {
+            TaskStatus.NOT_STARTED: (None, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.IN_PROGRESS: (TextColors.YELLOW, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (TextColors.GREEN, TextColors.GREEN, TextColors.GREEN)
+        }
+
+        status_to_colors_past = {
+            TaskStatus.NOT_STARTED: (TextColors.RED, TextColors.RED, TextColors.RED),
+            TaskStatus.IN_PROGRESS: (TextColors.RED, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (TextColors.PURPLE, TextColors.PURPLE, TextColors.PURPLE)
+        }
         
-        for day_date in day_range:
+        if task_date == date.today():
+            return status_to_colors_today[task_status]
+        else:
+            return status_to_colors_past[task_status]
 
-            # display what day of week it is
-            if show_weekday:
-                self._print_weekday(day_date)
+    
+    '''
+    Maps a date to the color used to display it based on the color scheme for past days.
 
-            # display the date
-            if day_date == date.today():
-                pretty_print(day_date, TextColors.CYAN + TextColors.UNDERLINE, end='')
-            else:
-                pretty_print(day_date, TextColors.BLUE, end='')
+    PARAMS:
+    day_date: date
 
-            # display number of days after today
-            if show_relative_to_today:
-                self._print_relative_to_today(day_date)
-            else:
-                print()
+    RETURNS:
+    TextColor: the color in which the date information is printed
+    '''
+    def _past_days_date_color_scheme(self, day_date):
+        return TextColors.CYAN if day_date == date.today() else TextColors.PURPLE
+    
 
-            index = 0
-            for task, status in self.agenda.get_tasks(day_date):
-                name_color, index_color, status_color = status_to_colors[status]
-                self._print_task(task, index, status, name_color, index_color, status_color)
-                index += 1
+    '''
+    Maps a task to the colors used to display it based on the color scheme for overdue tasks.
 
+    PARAMS:
+    task_name: string
+    task_index: int
+    task_status: TaskStatus
+    task_date: date
+
+    RETURNS:
+    (TextColor, TextColor, TextColor): tuple consisting of the display colors for the task name, the task index, and
+    the task status, in that order. None represents the default color.
+    '''
+    def _overdue_tasks_color_scheme(self, task_name, task_index, task_status, task_date):
+        status_to_colors = {
+            TaskStatus.NOT_STARTED: (TextColors.RED, TextColors.RED, TextColors.RED),
+            TaskStatus.IN_PROGRESS: (TextColors.RED, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (None, None, None) # will not be printed
+        }
+        return status_to_colors[task_status]
+    
+    '''
+    Maps a date to the color used to display it based on the color scheme for overdue tasks.
+
+    PARAMS:
+    day_date: date
+
+    RETURNS:
+    TextColor: the color in which the date information is printed
+    '''
+    def _overdue_date_color_scheme(self, day_date):
+        return TextColors.CYAN if day_date == date.today() else TextColors.RED
+    
+
+    '''
+    Maps a task to the colors used to display it based on the color scheme for listing out an individual day.
+
+    PARAMS:
+    task_name: string
+    task_index: int
+    task_status: TaskStatus
+    task_date: date
+
+    RETURNS:
+    (TextColor, TextColor, TextColor): tuple consisting of the display colors for the task name, the task index, and
+    the task status, in that order. None represents the default color.
+    '''
+    def _list_individual_day_task_color_scheme(self, task_name, task_index, task_status, task_date):
+        status_to_colors_upcoming = {
+            TaskStatus.NOT_STARTED: (None, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.IN_PROGRESS: (TextColors.YELLOW, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (TextColors.GREEN, TextColors.GREEN, TextColors.GREEN)
+        }
+
+        status_to_colors_past = {
+            TaskStatus.NOT_STARTED: (TextColors.RED, TextColors.RED, TextColors.RED),
+            TaskStatus.IN_PROGRESS: (TextColors.RED, TextColors.YELLOW, TextColors.YELLOW),
+            TaskStatus.DONE: (TextColors.PURPLE, TextColors.PURPLE, TextColors.PURPLE)
+        }
+        
+        if task_date >= date.today():
+            return status_to_colors_upcoming[task_status]
+        else:
+            return status_to_colors_past[task_status]
+
+    '''
+    Maps a date to the color used to display it based on the color scheme for listing out an individual day.
+
+    PARAMS:
+    day_date: date
+
+    RETURNS:
+    TextColor: the color in which the date information is printed
+    '''
+    def _list_individual_day_date_color_scheme(self, day_date):
+        if day_date > date.today():
+            return TextColors.BLUE
+        elif day_date == date.today():
+            return TextColors.CYAN 
+        else:
+            return TextColors.PURPLE
+
+    '''
+    Pretty prints the given date and all the tasks stored under it using the provided color schemes for the date
+    heading and the individual tasks.
+
+    PARAMS:
+    day_date: date
+    day_to_color_scheme: date -> TextColor
+    task_to_color_scheme: (string, int, TaskStatus, date) -> (TextColor, TextColor, TextColor)
+    show_day_of_week: bool
+    show_count_relative_to_today: bool
+    underline_today: bool
+    skip_if_no_tasks: bool
+    skip_task_if: (string, TaskStatus) -> bool
+    add_newline_at_end: bool
+
+    RETURNS:
+    bool: whether anything was printed out
+    '''
+    def _print_all_tasks_for_day(
+            self,
+            day_date,
+            day_to_color_scheme,
+            task_to_color_scheme,
+            show_day_of_week=False,
+            show_count_relative_to_today=False,
+            underline_today=False,
+            skip_if_no_tasks=False,
+            skip_task_if=None,
+            add_newline_at_end=False
+    ):
+        agenda_tasks = self.agenda.get_tasks(day_date)
+        
+        if skip_if_no_tasks:
+            # if there are no tasks for the day
+            if not agenda_tasks:
+                return False
+            
+            # if there are no tasks that would be printed out (i.e. there could be tasks, but they are all skipped)
+            if skip_task_if and not [task for task, status in agenda_tasks if not skip_task_if(task, status)]:
+                return False
+
+        date_color = day_to_color_scheme(day_date)
+
+        # display what day of week it is
+        if show_day_of_week:
+            self._print_weekday(day_date)
+
+        # display the date
+        pretty_print(day_date, date_color + (TextColors.UNDERLINE if underline_today and day_date == date.today() else ''), end='')
+
+        # display number of days after today
+        if show_count_relative_to_today:
+            self._print_relative_to_today(day_date)
+        else:
             print()
+
+        # print tasks for the day
+        index = 0
+        for task, status in agenda_tasks:
+            if skip_task_if is None or not skip_task_if(task, status):
+                name_color, index_color, status_color = task_to_color_scheme(task, index, status, day_date)
+                self._print_task(task, index, status, name_color, index_color, status_color)
+            index += 1
+        
+        if add_newline_at_end:
+            print()
+
+        return True
 
     '''
     Pretty prints the given task as one item in a list of tasks (i.e. under a day). Displays the index of the
@@ -438,39 +647,16 @@ class AgendaCommandLineInterface:
         else:
             day_range = date_range_inclusive(date.today(), self.agenda.get_earliest_date())
 
-        status_to_colors_today = {
-            TaskStatus.NOT_STARTED: (None, TextColors.YELLOW, TextColors.YELLOW),
-            TaskStatus.IN_PROGRESS: (TextColors.YELLOW, TextColors.YELLOW, TextColors.YELLOW),
-            TaskStatus.DONE: (TextColors.GREEN, TextColors.GREEN, TextColors.GREEN)
-        }
-
-        status_to_colors_past = {
-            TaskStatus.NOT_STARTED: (TextColors.RED, TextColors.RED, TextColors.RED),
-            TaskStatus.IN_PROGRESS: (TextColors.RED, TextColors.YELLOW, TextColors.YELLOW),
-            TaskStatus.DONE: (TextColors.PURPLE, TextColors.PURPLE, TextColors.PURPLE)
-        }
-
         for day_date in day_range:
-            
-            agenda_tasks = self.agenda.get_tasks(day_date)
-            if day_date != date.today() and not agenda_tasks:
-                continue
 
-            if day_date == date.today():
-                pretty_print(day_date, TextColors.CYAN + TextColors.UNDERLINE)
-            else:
-                pretty_print(day_date, TextColors.PURPLE)
-
-            index = 0
-            for task, status in agenda_tasks:
-                if day_date == date.today():
-                    name_color, index_color, status_color = status_to_colors_today[status]
-                else:
-                    name_color, index_color, status_color = status_to_colors_past[status]
-                self._print_task(task, index, status, name_color, index_color, status_color)
-                index += 1
-
-            print()
+            self._print_all_tasks_for_day(
+                day_date,
+                self._past_days_date_color_scheme,
+                self._past_days_tasks_color_scheme,
+                underline_today=True,
+                skip_if_no_tasks=True,
+                add_newline_at_end=True
+            )
 
     '''
     Pretty prints all the past days stored in the associated agenda, separated initially and finally
@@ -488,37 +674,37 @@ class AgendaCommandLineInterface:
 
         overdue_tasks = False
 
-        status_to_colors = {
-            TaskStatus.NOT_STARTED: (TextColors.RED, TextColors.RED, TextColors.RED),
-            TaskStatus.IN_PROGRESS: (TextColors.RED, TextColors.YELLOW, TextColors.YELLOW),
-            TaskStatus.DONE: None # will not be printed
-        }
-
         for day_date in date_range_inclusive(self.agenda.get_earliest_date(), date.today() - timedelta(1)):
 
-            agenda_tasks = self.agenda.get_tasks(day_date)
-            if not agenda_tasks:
-                continue 
-
-            index = 0
-
-            outstanding_tasks = [task[1] for task in agenda_tasks if task[1] != TaskStatus.DONE]
-
-            if outstanding_tasks:
-                overdue_tasks = True
-                pretty_print(day_date, TextColors.RED)
-            
-            for task, status in agenda_tasks:
-                if status != TaskStatus.DONE:
-                    name_color, index_color, status_color = status_to_colors[status]
-                    self._print_task(task, index, status, name_color, index_color, status_color)
-                index += 1
-
-            if outstanding_tasks:
-                print()
+            overdue_tasks = self._print_all_tasks_for_day(
+                day_date,
+                self._overdue_date_color_scheme,
+                self._overdue_tasks_color_scheme,
+                underline_today=True,
+                skip_if_no_tasks=True,
+                skip_task_if=lambda task, status: status == TaskStatus.DONE,
+                add_newline_at_end=True
+            )  or overdue_tasks
 
         if not overdue_tasks:
             pretty_print("No overdue items!\n", TextColors.GREEN)
+
+    '''
+    Pretty prints all the tasks on the specified day.
+
+    PARAMS:
+    day_date: date
+    '''
+    def list_tasks_for_day(self, day_date):
+        print()
+        self._print_all_tasks_for_day(
+            day_date,
+            self._list_individual_day_date_color_scheme,
+            self._list_individual_day_task_color_scheme,
+            underline_today=True,
+            add_newline_at_end=True
+        )
+        
 
     '''
     Pretty prints a welcome message.
@@ -537,6 +723,7 @@ class AgendaCommandLineInterface:
         pretty_print("Type 'vu' to view all upcoming days.", TextColors.YELLOW)
         pretty_print("Type 'vp' to view all past days.", TextColors.YELLOW)
         pretty_print("Type 'vl' to view all late tasks.\n", TextColors.YELLOW)
+        pretty_print("Type 'l' followed by a YYYY-MM-DD date to view all tasks for that day.", TextColors.YELLOW)
         pretty_print("Type 'a' followed by a YYYY-MM-DD date and a text description to add a NOT_STARTED task to that day.", TextColors.YELLOW)
         pretty_print("Type 'r' followed by a YYYY-MM-DD date and the index of a task, to remove that task from that day.", TextColors.YELLOW)
         pretty_print("Type 'm' followed by a YYYY-MM-DD date, the index of a task, and a text description to rename that task.", TextColors.YELLOW)
@@ -696,6 +883,7 @@ class AgendaCommandLineController:
             'm': self.update_description_item,
             'u': self.update_status_item,
             'p': self.change_date_item,
+            'l': self.list_items_day,
             'o': self.view_settings,
         }
 
@@ -829,6 +1017,10 @@ class AgendaCommandLineController:
         self.agenda_view.change_date_item_successful(day_date, description, new_date)
         
         self._handle_autosaving()
+
+    def list_items_day(self, args):
+        day_date = self._parse_date(args[0])
+        self.agenda_view.list_tasks_for_day(day_date)
 
     '''
     Called when the user brings up the settings menu.
