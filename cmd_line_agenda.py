@@ -774,6 +774,13 @@ class AgendaCommandLineInterface:
         print("Command not recognized.")
 
     '''
+    Pretty prints how the given command should be used, according to the specification provided in the form of
+    the command name and a list containing the names of the command arguments.
+    '''
+    def command_usage(self, command_name, command_arg_names):
+        print(f"Command usage: {command_name} {' '.join([f'<{name}>' for name in command_arg_names])}")
+
+    '''
     Pretty prints agenda save confirmation.
     '''
     def save_successful(self):
@@ -885,6 +892,22 @@ class AgendaCommandLineController:
             'p': self.change_date_item,
             'l': self.list_items_day,
             'o': self.view_settings,
+        }
+
+        # maps each command to identifiers of each of its required arguments
+        self.command_required_arg_names = {
+            'vu': [],
+            'vp': [],
+            'vl': [],
+            'help': [],
+            's': [],
+            'a': ['date', 'description'],
+            'r': ['date', 'index'],
+            'm': ['date', 'index', 'description'],
+            'u': ['date', 'index'],
+            'p': ['date', 'index', 'date'],
+            'l': ['date'],
+            'o': []
         }
 
         # maps each settings command to the index of the setting it should change and
@@ -1113,6 +1136,7 @@ class AgendaCommandLineController:
     date
     '''
     def _parse_date(self, date_string):
+        user_input = date_string
 
         # the user can write "today" or "now" instead of today's date
         if date_string in ('today', 'now'):
@@ -1132,7 +1156,7 @@ class AgendaCommandLineController:
 
         # the user can write MM-DD instead of YYYY-MM-DD, in which case the year is inferred
         if len(date_split) <= 1 or len(date_split) > 3:
-            raise Exception("Invalid date format provided.")
+            raise Exception(f"\"{user_input}\" is not a recognized date or date alternative.")
         
         # adds a leading 0 to the month or day if necessary
         if len(date_split[-1]) == 1:
@@ -1144,15 +1168,18 @@ class AgendaCommandLineController:
 
         # if no date is provided, the year is assumed to be either this current year, or the
         # next year if the given month and day for this year have already passed
-        if len(date_split) == 2:
+        try:
+            if len(date_split) == 2:
 
-            year = date.today().year
-            if date.fromisoformat(str(year) + '-' + date_string) < date.today():
-                date_string = str(year + 1) + '-' + date_string
-            else:
-                date_string = str(year) + '-' + date_string
+                year = date.today().year
+                if date.fromisoformat(str(year) + '-' + date_string) < date.today():
+                    date_string = str(year + 1) + '-' + date_string
+                else:
+                    date_string = str(year) + '-' + date_string
 
-        return date.fromisoformat(date_string)
+            return date.fromisoformat(date_string)
+        except Exception:
+            raise Exception(f"\"{user_input}\" is not a recognized date or date alternative.")
 
     '''
     Handles any commands when the user is on the main loop. Before this function is called, check that
@@ -1163,7 +1190,7 @@ class AgendaCommandLineController:
     '''
     def _handle_main_loop(self):
         self.agenda_view.prompt_next_command()
-        command = input()
+        command = input().strip()
 
         # handles a couple special commands
         if not command:
@@ -1185,12 +1212,19 @@ class AgendaCommandLineController:
         # other commands are all stored in the commands dictionary
         # TODO: abstract this out with the settings menu handler
         command_list = command.split()
-        if command_list[0] not in self.commands:
+        command = command_list[0]
+        if command not in self.commands:
+            # unrecognized command
             self.agenda_view.invalid_command()
             return False 
+        
+        elif len(command_list[1:]) < len(self.command_required_arg_names[command]):
+            # not enough arguments provided for command
+            self.agenda_view.command_usage(command, self.command_required_arg_names[command])
+            return False
             
         try:
-            self.commands[command_list[0]](command_list[1:])
+            self.commands[command](command_list[1:])
         except Exception as e:
             self.agenda_view.error(str(e))
 
@@ -1205,7 +1239,7 @@ class AgendaCommandLineController:
     '''
     def _handle_settings_menu(self):
         self.agenda_view.prompt_next_settings_command()
-        command = input()
+        command = input().strip()
 
         # handles a couple special commands
         if not command:
